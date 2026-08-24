@@ -1,5 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
+<!-- BUILD VERSION: 2026-08-24 01:01 — logo repositioned, Ref: label fixed, client-type tag added -->
+
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -254,13 +256,20 @@ select.tb-sel{background:#0d1a0d;color:#8aba6a;border:1px solid #2a5a2a;padding:
   <div class="sb-sec">
     <div class="sb-lbl">Ref No. — Auto-Generated</div>
     <div class="sb-info">
-      Computed automatically:<br>
-      <strong>[DD][Mon][YY]/RD##</strong> — Rahul<br>
-      <strong>[DD][Mon][YY]/SS##</strong> — Susnita<br><br>
-      Updates when you change Bill Date or Raiser. No manual entry needed.<br><br>
+      <strong>[Tag]/[DD][Mon][YY]/[Bill No.]</strong><br><br>
+      Client-type tag:<br>
+      O = OICL / Insurance Co.<br>
+      K = KVIC<br>
+      C = ICAR<br>
+      I = Individual<br>
+      N = Organization<br>
+      G = Government Institute<br>
+      P = Private / unclassified<br><br>
+      Updates automatically with Raiser, Bill Date, Client, and Footer Type.<br><br>
       J=Jan F=Feb M=Mar A=Apr<br>
       E=May N=Jun L=Jul G=Aug<br>
-      S=Sep O=Oct V=Nov D=Dec
+      S=Sep O=Oct V=Nov D=Dec<br><br>
+      Example: <strong>K/17G26/RD21</strong>
     </div>
   </div>
 </div>
@@ -551,6 +560,23 @@ const wTot=r=>(r.fields[F.w.fee]||0)+(r.fields[F.w.clerkage]||0)+(r.fields[F.w.o
 // Month code map for Ref No. generation
 const MONTH_CODES=["J","F","M","A","E","N","L","G","S","O","V","D"]; // Jan..Dec
 
+function getClientTypeTag(){
+  // Priority 1: Footer Type selection (institutional panels)
+  const foot=document.getElementById("f-foot")?.value;
+  if(foot==="oicl")return"O";
+  if(foot==="kvic")return"K";
+  if(foot==="icar")return"C"; // ICAR
+  // Priority 2: Client Category from Airtable record
+  if(currentClient){
+    const cat=gs(currentClient.fields[F.c.cat]);
+    if(cat==="Individual")return"I";
+    if(cat==="Organization")return"N"; // orgaNization (O taken by OICL)
+    if(cat==="Insurance Company")return"O";
+    if(cat==="Government Institute")return"G";
+  }
+  return"P"; // Private / unclassified fallback
+}
+
 function computeRefNo(){
   const raiser=document.getElementById("f-raiser").value;
   const bd=document.getElementById("f-bdate").value||today();
@@ -561,7 +587,8 @@ function computeRefNo(){
     .map(b=>parseInt(b.fields[F.b.billNo].replace(raiser,""))).filter(n=>!isNaN(n));
   const nextSerial=Math.max(0,...nums)+1;
   const billNo=raiser+nextSerial.toString().padStart(2,"0");
-  const ref=`${day}${mCode}${yy}/${billNo}`;
+  const tag=getClientTypeTag();
+  const ref=`${tag}/${day}${mCode}${yy}/${billNo}`;
   document.getElementById("f-ref").value=ref;
   const disp=document.getElementById("f-ref-display");
   if(disp)disp.textContent=ref;
@@ -684,6 +711,7 @@ async function selectClient(id,name){
       const o=document.createElement("option");o.value=m.id;o.textContent=label||m.id;msel.appendChild(o);
     });
   }catch(e){console.error(e);}
+  computeRefNo();
   upd();
 }
 
@@ -886,6 +914,7 @@ function getLis(){
 
 function onFooterChange(){
   document.getElementById("custom-row").style.display=document.getElementById("f-foot").value==="custom"?"block":"none";
+  computeRefNo();
   upd();
 }
 
@@ -968,16 +997,16 @@ function upd(){
   let html=`<table style="width:100%;border-collapse:collapse;border-bottom:2.5pt double #111;padding-bottom:5pt;margin-bottom:4pt;">
   <tr>
     <td style="width:32%;vertical-align:top;padding-right:8pt;">
-      <table style="border-collapse:collapse;"><tr>
-        <td style="vertical-align:middle;padding-right:6pt;"><img src="${LOGO_B64}" style="width:34pt;height:34pt;object-fit:contain;"></td>
+      <div style="font-family:'Times New Roman',serif;font-size:15pt;font-weight:bold;font-style:italic;line-height:1.1;">${R.dispname}</div>
+      <div style="font-size:7pt;color:#222;margin-top:1pt;">Advocate</div>
+      <div style="font-size:7pt;color:#222;">Partner, High Court Calcutta</div>
+      <table style="border-collapse:collapse;margin-top:4pt;"><tr>
+        <td style="vertical-align:middle;padding-right:5pt;"><img src="${LOGO_B64}" style="width:26pt;height:26pt;object-fit:contain;"></td>
         <td style="vertical-align:middle;">
-          <div style="font-family:'Times New Roman',serif;font-size:15pt;font-weight:bold;font-style:italic;line-height:1.1;">${R.dispname}</div>
-          <div style="font-size:7pt;color:#222;margin-top:1pt;">Advocate</div>
-          <div style="font-size:7pt;color:#222;">Partner, High Court Calcutta</div>
+          <div style="font-size:14pt;font-weight:bold;font-style:italic;font-family:'Times New Roman',serif;line-height:1.1;">lex Consuasor</div>
+          <div style="font-size:6.5pt;letter-spacing:0.8pt;text-transform:uppercase;color:#444;">Advocates, Solicitors &amp; Business Consultant Expert</div>
         </td>
       </tr></table>
-      <div style="margin-top:4pt;font-size:14pt;font-weight:bold;font-style:italic;font-family:'Times New Roman',serif;">lex Consuasor</div>
-      <div style="font-size:6.5pt;letter-spacing:0.8pt;text-transform:uppercase;color:#444;">Advocates, Solicitors &amp; Business Consultant Expert</div>
     </td>
     <td style="width:44%;vertical-align:top;text-align:center;font-size:7.5pt;line-height:1.7;padding:0 6pt;">
       <strong style="font-size:8pt;">Chamber &amp; Residence:</strong><br>
@@ -1000,7 +1029,7 @@ function upd(){
 </div>`;
 
   html+=`<div class="memo-ttl">MEMORANDUM</div>
-<div class="memo-ref"><div><u><strong>${ref||"Ref: ___________"}</strong></u></div><div><strong>Date:</strong> ${fmtDate(bd)||"___________"}</div></div>`;
+<div class="memo-ref"><div><strong>Ref:</strong> <u><strong>${ref||"___________"}</strong></u></div><div><strong>Date:</strong> ${fmtDate(bd)||"___________"}</div></div>`;
   if(addr)html+=`<div class="memo-to"><em>To</em><br>${addr.replace(/\n/g,"<br>")}</div>`;
   if(mtext)html+=`<div class="memo-matter"><strong>In the Matter of:</strong> ${mtext.replace(/\n/g,"<br>")}</div>`;
 
