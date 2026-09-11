@@ -86,6 +86,8 @@ html:not(.lc-unlocked) #add-client-modal{display:none!important;}
 /* Add Client Modal */
 #add-client-modal{display:none!important;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center;}
 #add-client-modal.show{display:flex!important;}
+#add-matter-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1001;align-items:center;justify-content:center;}
+#add-matter-modal.show{display:flex!important;}
 .modal-box{background:var(--white);border-radius:6px;padding:24px;width:420px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.3);}
 .modal-title{font-size:14px;color:var(--green);font-weight:bold;margin-bottom:4px;}
 .modal-sub{font-size:10px;color:var(--dim);margin-bottom:16px;}
@@ -378,7 +380,7 @@ html:not(.lc-unlocked) #add-client-modal{display:none!important;}
     <h2>Connect to Airtable</h2>
     <button class="tb-btn tb-primary" id="btn-oauth" onclick="startOAuthLogin()" style="width:100%;">🔑 Sign in with Airtable</button>
     <div class="alert alert-warn" id="oauth-err" style="display:none;margin-top:10px;"></div>
-    <p style="margin-top:10px;font-size:9px;color:var(--dim);">Signs you in with your real Airtable account. No token to copy or paste, and OAuth credentials are kept only for this browser session; Airtable controls the granted base access.</p>
+    <p style="margin-top:10px;font-size:9px;color:var(--dim);">Signs you in with your real Airtable account. No token to copy or paste, and OAuth credentials are kept only for this browser session; Airtable controls the granted workspace/base access.</p>
     <details style="margin-top:16px;">
       <summary style="cursor:pointer;font-size:10px;color:var(--dim);">Use a Personal Access Token instead</summary>
       <div style="margin-top:10px;">
@@ -867,6 +869,11 @@ async function sha256Bytes(str){return await crypto.subtle.digest("SHA-256",new 
 function showOauthErr(m){const e=document.getElementById("oauth-err");if(e){e.textContent="✗ "+m;e.style.display="block";}}
 
 async function startOAuthLogin(){
+  const here=location.origin+location.pathname;
+  if(here!==OAUTH_REDIRECT_URI){
+    showOauthErr("OAuth must be started from the published Lex Consuasor GitHub Pages address. Current page: "+here);
+    return;
+  }
   if(OAUTH_CLIENT_ID.startsWith("TODO")){
     showOauthErr("OAuth isn't set up yet — the Client ID hasn't been configured. Use a Personal Access Token below for now.");
     return;
@@ -938,11 +945,13 @@ async function handleOAuthPageLoad(){
   const params=new URLSearchParams(location.search);
   const code=params.get("code"), state=params.get("state"), oErr=params.get("error");
   if(!code&&!oErr)return false;
-  history.replaceState({},"",location.pathname); // scrub the code/state out of the URL immediately either way
   if(oErr){
+    const detail=params.get("error_description")||params.get("error")||"unknown OAuth error";
+    history.replaceState({},"",location.pathname);
     try{sessionStorage.removeItem(OAUTH_STATE_KEY);sessionStorage.removeItem(OAUTH_VERIFIER_KEY);}catch(e){}
-    showOauthErr("Airtable sign-in did not complete: "+(params.get("error_description")||oErr));return false;
+    showOauthErr("Airtable authorization was rejected: "+detail+". If Airtable showed a base/workspace access selector and then errored, the failure occurred in Airtable's authorization grant, before this page received the callback.");return false;
   }
+  history.replaceState({},"",location.pathname); // scrub code/state after reading callback parameters
   const savedState=sessionStorage.getItem(OAUTH_STATE_KEY);
   const verifier=sessionStorage.getItem(OAUTH_VERIFIER_KEY);
   if(!verifier||!state||state!==savedState){
@@ -960,7 +969,11 @@ async function handleOAuthPageLoad(){
     return true;
   }catch(e){
     clearOAuthSession();
-    showOauthErr("Sign-in failed: "+e.message);
+    const msg=String(e?.message||e);
+    const extra=/Failed to fetch|NetworkError|Load failed/i.test(msg)
+      ? " The browser could not complete the token exchange. The published site needs the server-side OAuth token exchange/refresh proxy; PAT remains available."
+      : "";
+    showOauthErr("Sign-in failed: "+msg+extra);
     return false;
   }
 }
