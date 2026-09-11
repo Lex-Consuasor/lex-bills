@@ -77,9 +77,15 @@ select.tb-sel{background:#0d1a0d;color:#8aba6a;border:1px solid #2a5a2a;padding:
 .cs-selected{background:#f0f9f0;border:1px solid #2a7a2a;border-radius:3px;padding:6px 9px;font-size:11px;display:flex;justify-content:space-between;align-items:center;}
 .cs-clear{background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;padding:0 3px;}
 
+/* AUTH/UX HARD LOCK: Client Master Data dialog must never occupy layout before explicit Add Client. */
+html:not(.lc-unlocked) #shell{display:none!important;}
+html:not(.lc-unlocked) #add-client-modal{display:none!important;}
+#add-client-modal{visibility:hidden;pointer-events:none;}
+#add-client-modal.show{visibility:visible;pointer-events:auto;}
+
 /* Add Client Modal */
-#add-client-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center;}
-#add-client-modal.show{display:flex;}
+#add-client-modal{display:none!important;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center;}
+#add-client-modal.show{display:flex!important;}
 .modal-box{background:var(--white);border-radius:6px;padding:24px;width:420px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.3);}
 .modal-title{font-size:14px;color:var(--green);font-weight:bold;margin-bottom:4px;}
 .modal-sub{font-size:10px;color:var(--dim);margin-bottom:16px;}
@@ -651,6 +657,7 @@ async function checkPwd(){
   if(await sha256(v)===HASH){
     document.getElementById("pg").style.display="none";
     document.getElementById("shell").style.display="flex";
+    document.documentElement.classList.add("lc-unlocked");
     sessionStorage.setItem("lc_ok","1");
     document.getElementById("f-bdate").value=today();
     if(typeof upd==="function")upd();
@@ -661,9 +668,11 @@ async function checkPwd(){
   }
 }
 window.addEventListener("DOMContentLoaded",()=>{
+  const hasOAuthCallback=new URLSearchParams(location.search).has("code")||new URLSearchParams(location.search).has("error");
   if(sessionStorage.getItem("lc_ok")==="1"){
     document.getElementById("pg").style.display="none";
     document.getElementById("shell").style.display="flex";
+    document.documentElement.classList.add("lc-unlocked");
     document.getElementById("f-bdate").value=today();
     handleOAuthPageLoad();
   }
@@ -839,7 +848,9 @@ function disconnect(){clearOAuthSession();location.reload();}
 
 // ── OAUTH (PKCE, public client — no client secret, no backend) ─────
 const OAUTH_CLIENT_ID="e2424553-7300-4494-b09c-82e450808ee9"; // Airtable Builder Hub → OAuth integrations
-const OAUTH_REDIRECT_URI=location.origin+location.pathname; // must exactly match the redirect URL registered in Airtable
+const OAUTH_REDIRECT_URI="https://lex-consuasor.github.io/lex-bills/"; // must exactly match Airtable OAuth registration
+// Browser token exchange is blocked when Airtable does not allow CORS. Set this to a same-origin/server-side token endpoint when available.
+const OAUTH_TOKEN_PROXY="";
 const OAUTH_SCOPES="data.records:read data.records:write";
 const OAUTH_AUTH_URL="https://airtable.com/oauth2/v1/authorize";
 const OAUTH_TOKEN_URL="https://airtable.com/oauth2/v1/token";
@@ -874,8 +885,15 @@ async function startOAuthLogin(){
 
 async function exchangeOAuthCode(code,verifier){
   const body=new URLSearchParams({grant_type:"authorization_code",code,redirect_uri:OAUTH_REDIRECT_URI,client_id:OAUTH_CLIENT_ID,code_verifier:verifier});
-  const r=await fetch(OAUTH_TOKEN_URL,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body});
-  const d=await r.json();
+  const endpoint=OAUTH_TOKEN_PROXY||OAUTH_TOKEN_URL;
+  let r;
+  try{
+    r=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body});
+  }catch(e){
+    if(!OAUTH_TOKEN_PROXY)throw new Error("Airtable OAuth consent succeeded, but the browser cannot exchange the code directly. A secure same-origin OAuth token proxy/Cloudflare Worker is required.");
+    throw e;
+  }
+  const d=await r.json().catch(()=>({}));
   if(!r.ok)throw new Error(d?.error_description||d?.error||`HTTP ${r.status}`);
   return d;
 }
@@ -1147,10 +1165,10 @@ function openAddClient(prefill=""){
     }
   }
   document.getElementById("cs-dropdown").style.display="none";
-  document.getElementById("add-client-modal").classList.add("show");
+  const m=document.getElementById("add-client-modal");m.style.display="";m.classList.add("show");
 }
 
-function closeModal(){document.getElementById("add-client-modal").classList.remove("show");}
+function closeModal(){const m=document.getElementById("add-client-modal");m.classList.remove("show");m.style.display="none";}
 
 async function saveNewClient(){
   const name=document.getElementById("nc-name").value.trim();
