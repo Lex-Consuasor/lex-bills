@@ -27,3 +27,14 @@ Lex Consuasor (Latin for "Law Advisor") provides a robust engine to parse and ex
 git clone https://github.com/username/lex-consuasor.git
 cd lex-consuasor
 npm install
+
+## GitHub OAuth example
+
+A runnable GitHub sign-in example is available in `examples/github-oauth`. It is intentionally isolated from the rules library, so applications can adopt or adapt the authentication flow without changing the library’s core API.
+
+1. Create a GitHub OAuth App in [GitHub Developer Settings](https://github.com/settings/developers).
+2. Use `http://localhost:3000/auth/github/callback` as the development callback URL.
+3. Copy `examples/github-oauth/.env.example` to `examples/github-oauth/.env` and supply the GitHub client ID, client secret, and a long session secret.
+4. Run `npm install` and `npm start` from the example directory.
+
+Do not commit the `.env` file or OAuth credentials.
